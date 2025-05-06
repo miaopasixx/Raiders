@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>聊天室室长运营攻略</title>
+    <!-- TailwindCSS 通过CDN引入 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome 图标库 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        // 配置Tailwind主题
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            200: '#bae6fd',
+                            300: '#7dd3fc',
+                            400: '#38bdf8',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                            700: '#0369a1',
+                            800: '#075985',
+                            900: '#0c4a6e',
+                        },
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                },
+            },
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .transition-all {
+                transition-property: all;
+                transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+                transition-duration: 150ms;
+            }
+            
+            .command {
+                @apply bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded font-mono text-sm border-l-4 border-primary-500 my-2 block;
+            }
+            
+            .card {
+                @apply bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg transition-all p-6 mb-6;
+            }
+            
+            .section-title {
+                @apply text-2xl font-bold mb-4 text-gray-800 dark:text-white border-b pb-2 border-gray-200 dark:border-gray-700;
+            }
+            
+            .subsection-title {
+                @apply text-xl font-semibold mb-3 text-gray-700 dark:text-gray-200 mt-6;
+            }
+            
+            .content-image {
+                @apply rounded-lg shadow-md hover:shadow-lg transition-all cursor-pointer my-4 max-w-full md:max-w-md mx-auto object-cover h-auto;
+                width: 388px; /* 添加固定宽度 */
+                height: auto; /* 保持高度自适应以维持图片比例 */
+            }
+            
+            /* 添加图片容器样式，确保图片尺寸一致 */
+            .image-container {
+                @apply flex justify-center items-center overflow-hidden rounded-lg shadow-md hover:shadow-lg transition-all;
+                width: 388px; /* 修改为固定宽度 */
+                height: auto; /* 修改为自适应高度 */
+                max-height: 388px; /* 添加最大高度限制 */
+            }
+            
+            .image-container img {
+                @apply object-contain w-full h-full;
+            }
+            
+            /* 响应式图片尺寸 */
+            @media (max-width: 768px) {
+                .image-container {
+                    width: 100%; /* 在小屏幕上保持响应式 */
+                    max-width: 388px; /* 最大宽度限制 */
+                    height: auto;
+                }
+                
+                .content-image {
+                    width: 100%; /* 在小屏幕上保持响应式 */
+                    max-width: 388px; /* 最大宽度限制 */
+                }
+            }
+            .table-container {
+                @apply overflow-x-auto my-4;
+            }
+            
+            .custom-table {
+                @apply min-w-full border-collapse;
+            }
+            
+            .custom-table th {
+                @apply bg-gray-100 dark:bg-gray-700 text-left py-3 px-4 font-semibold text-gray-700 dark:text-gray-200 border-b border-gray-200 dark:border-gray-600;
+            }
+            
+            .custom-table td {
+                @apply py-3 px-4 border-b border-gray-200 dark:border-gray-600;
+            }
+            
+            .custom-table tr:hover {
+                @apply bg-gray-50 dark:bg-gray-700;
+            }
+            
+            .note-box {
+                @apply bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-yellow-400 p-4 my-4 rounded-r;
+            }
+            
+            .tip-box {
+                @apply bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-400 p-4 my-4 rounded-r;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 transition-colors duration-200">
+    <!-- 图片查看器模态框 -->
+    <div id="imageModal" class="fixed inset-0 bg-black bg-opacity-80 z-50 flex items-center justify-center hidden transition-all duration-300">
+        <div class="relative max-w-4xl mx-auto p-4">
+            <button id="closeModal" class="absolute top-0 right-0 -mt-12 -mr-12 text-white text-3xl hover:text-gray-300">
+                <i class="fas fa-times"></i>
+            </button>
+            <img id="modalImage" src="" alt="放大图片" class="max-h-[90vh] max-w-full object-contain">
+            <div class="flex justify-between mt-4">
+                <button id="prevImage" class="text-white text-2xl hover:text-gray-300 px-4 py-2">
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+                <button id="nextImage" class="text-white text-2xl hover:text-gray-300 px-4 py-2">
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 导航栏 -->
+    <nav class="sticky top-0 bg-white dark:bg-gray-800 shadow-md z-40 transition-all">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <img src="https://img.alicdn.com/imgextra/i3/2750187788/O1CN01TJXbgu27Oxc6wyEYy_!!2750187788-2-tblife2_ugc.png" alt="淘江湖" class="h-12 w-auto"> <!-- 增加图片高度从h-8到h-12,并添加w-auto保持宽高比 -->
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button id="toggleToc" class="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-all">
+                        <i class="fas fa-list-ul"></i>
+                    </button>
+                    <button id="toggleTheme" class="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-all">
+                        <i class="fas fa-moon dark:hidden"></i>
+                        <i class="fas fa-sun hidden dark:block"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 目录侧边栏 -->
+    <div id="tocSidebar" class="fixed right-0 top-16 bottom-0 w-64 bg-white dark:bg-gray-800 shadow-lg transform translate-x-full transition-transform duration-300 ease-in-out z-30 overflow-y-auto">
+        <div class="p-4">
+            <h3 class="text-lg font-semibold mb-4 border-b pb-2 border-gray-200 dark:border-gray-700">目录</h3>
+            <ul class="space-y-2">
+                <li><a href="#intro" class="block hover:text-primary-500 transition-colors">适用对象</a></li>
+                <li>
+                    <a href="#section1" class="block hover:text-primary-500 transition-colors">一、基础管理功能</a>
+                    <ul class="pl-4 mt-2 space-y-1 text-sm">
+                        <li><a href="#section1-1" class="block hover:text-primary-500 transition-colors">1.1 管理面板访问</a></li>
+                        <li><a href="#section1-2" class="block hover:text-primary-500 transition-colors">1.2 数据分析</a></li>
+                        <li><a href="#section1-3" class="block hover:text-primary-500 transition-colors">1.3 全员通知</a></li>
+                        <li><a href="#section1-4" class="block hover:text-primary-500 transition-colors">1.4 管理员快捷命令</a></li>
+                        <li><a href="#section1-5" class="block hover:text-primary-500 transition-colors">1.5 小窗设置</a></li>
+                    </ul>
+                </li>
+                <li>
+                    <a href="#section2" class="block hover:text-primary-500 transition-colors">二、聊天室互动工具</a>
+                    <ul class="pl-4 mt-2 space-y-1 text-sm">
+                        <li><a href="#section2-1" class="block hover:text-primary-500 transition-colors">2.1 投票工具</a></li>
+                        <li><a href="#section2-2" class="block hover:text-primary-500 transition-colors">2.2 答题工具</a></li>
+                        <li><a href="#section2-3" class="block hover:text-primary-500 transition-colors">2.3 押宝答题工具</a></li>
+                        <li><a href="#section2-4" class="block hover:text-primary-500 transition-colors">2.4 幸运儿活动</a></li>
+                    </ul>
+                </li>
+                <li>
+                    <a href="#section3" class="block hover:text-primary-500 transition-colors">三、活跃聊天室攻略</a>
+                    <ul class="pl-4 mt-2 space-y-1 text-sm">
+                        <li><a href="#section3-1" class="block hover:text-primary-500 transition-colors">3.1 基础运营策略</a></li>
+                        <li><a href="#section3-2" class="block hover:text-primary-500 transition-colors">3.2 互动技巧</a></li>
+                    </ul>
+                </li>
+                <li>
+                    <a href="#section4" class="block hover:text-primary-500 transition-colors">四、常见问题解答(FAQ)</a>
+                </li>
+                <li>
+                    <a href="#summary" class="block hover:text-primary-500 transition-colors">总结与建议</a>
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- 主要内容 -->
+    <main class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- 介绍部分 -->
+        <section id="intro" class="mb-12">
+            <h1 class="text-3xl font-bold mb-6 text-center text-gray-900 dark:text-white">聊天室室长运营攻略</h1>
+            
+            <div class="card">
+                <h2 class="section-title">适用对象</h2>
+                <p class="mb-4">本指南专为新任聊天室室长设计，帮助您快速掌握聊天室管理技能，提升聊天室活跃度和用户体验。无需专业技术背景，只要按照指南操作即可轻松管理聊天室。</p>
+                
+                <h2 class="section-title mt-6">目录</h2>
+                <ol class="list-decimal list-inside space-y-1 ml-4">
+                    <li>基础管理功能</li>
+                    <li>聊天室互动工具</li>
+                    <li>活跃聊天室攻略</li>
+                    <li>常见问题解答(FAQ)</li>
+                </ol>
+            </div>
+        </section>
+
+        <!-- 第一部分：基础管理功能 -->
+        <section id="section1" class="mb-12">
+            <div class="card">
+                <h2 class="section-title">一、基础管理功能</h2>
+                
+                <div id="section1-1">
+                    <h3 class="subsection-title">1.1 管理面板访问</h3>
+                    <p>室长获得管理权限后，可以通过以下步骤访问管理面板：</p>
+                    <ol class="list-decimal list-inside space-y-1 ml-4 my-3">
+                        <li>点击房间列表的设置键</li>
+                        <li>进入管理面板查看数据统计</li>
+                    </ol>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <img src="https://img.alicdn.com/imgextra/i2/2219106532271/O1CN01B7t5Ey1SeAVrpHsO5_!!2219106532271-2-taojianghu_pic_upload.png" alt="管理面板入口" class="content-image">
+                        <img src="https://img.alicdn.com/imgextra/i4/2219106532271/O1CN010CO7xF1SeAVrIGbXy_!!2219106532271-2-taojianghu_pic_upload.png" alt="管理面板界面" class="content-image">
+                    </div>
+                </div>
+                
+                <div id="section1-2">
+                    <h3 class="subsection-title">1.2 数据分析</h3>
+                    <p>通过管理面板，室长可以了解以下关键数据：</p>
+                    <ul class="list-disc list-inside space-y-1 ml-4 my-3">
+                        <li>每日访问数量</li>
+                        <li>消息数量</li>
+                        <li>新用户数量</li>
+                    </ul>
+                    <p>这些数据可以帮助您评估聊天室活跃度和用户增长情况。</p>
+                </div>
+                
+                <div id="section1-3">
+                    <h3 class="subsection-title">1.3 全员通知</h3>
+                    <p>发布重要信息时，可使用聊天室全员POP通知功能：</p>
+                    <ol class="list-decimal list-inside space-y-1 ml-4 my-3">
+                        <li>在管理面板中找到"发送通知"选项</li>
+                        <li>编写通知内容</li>
+                        <li>点击发送</li>
+                    </ol>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <img src="https://img.alicdn.com/imgextra/i3/2219106532271/O1CN01i4j7TR1SeAVq8zjLx_!!2219106532271-2-taojianghu_pic_upload.png" alt="通知功能入口" class="content-image">
+                        <img src="https://img.alicdn.com/imgextra/i2/2219106532271/O1CN01SlOJoX1SeAVojbIXe_!!2219106532271-2-taojianghu_pic_upload.png" alt="通知编辑界面" class="content-image">
+                    </div>
+                </div>
+                
+                <div id="section1-4">
+                    <h3 class="subsection-title">1.4 管理员快捷命令</h3>
+                    <p>在对话框输入"/"可打开管理员快捷键设置：</p>
+                    
+                    <img src="https://img.alicdn.com/imgextra/i2/2219106532271/O1CN01sCxc071SeAVjs5WNc_!!2219106532271-2-taojianghu_pic_upload.png" alt="快捷命令菜单" class="content-image">
+                    
+                    <h4 class="font-semibold mt-4 mb-2">常用管理命令：</h4>
+                    <div class="table-container">
+                        <table class="custom-table">
+                            <thead>
+                                <tr>
+                                    <th>功能</th>
+                                    <th>命令格式</th>
+                                    <th>示例</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>话题设置</td>
+                                    <td><code class="bg-gray-100 dark:bg-gray-800 px-1 rounded">/settopic 热点话题 1</code></td>
+                                    <td><code class="bg-gray-100 dark:bg-gray-800 px-1 rounded">/settopic 今日股市 1</code></td>
+                                </tr>
+                                <tr>
+                                    <td>话题关闭</td>
+                                    <td><code class="bg-gray-100 dark:bg-gray-800 px-1 rounded">/settopic 热点话题 -1</code></td>
+                                    <td><code class="bg-gray-100 dark:bg-gray-800 px-1 rounded">/settopic 今日股市 -1</code></td>
+                                </tr>
+                                <tr>
+                                    <td>倒计时设置</td>
+                                    <td><code class="bg-gray-100 dark:bg-gray-800 px-1 rounded">/broadcast 倒计时 {秒数}</code></td>
+                                    <td><code class="bg-gray-100 dark:bg-gray-800 px-1 rounded">/broadcast 倒计时 60</code></td>
+                                </tr>
+                                <tr>
+                                    <td>发送元宝</td>
+                                    <td><code class="bg-gray-100 dark:bg-gray-800 px-1 rounded">/yuanbaosend 发送人员 元宝数量</code></td>
+                                    <td><code class="bg-gray-100 dark:bg-gray-800 px-1 rounded">/yuanbaosend 张三 100</code></td>
+                                </tr>
+                                <tr>
+                                    <td>聊天室公告</td>
+                                    <td><code class="bg-gray-100 dark:bg-gray-800 px-1 rounded">/broadcast 公告内容</code></td>
+                                    <td><code class="bg-gray-100 dark:bg-gray-800 px-1 rounded">/broadcast 欢迎加入我们的聊天室！</code></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <h4 class="font-semibold mt-4 mb-2">公告设置注意事项：</h4>
+                    <ol class="list-decimal list-inside space-y-1 ml-4 my-3">
+                        <li>公告内容最好精简到一排字</li>
+                        <li>公告最好加帖子链接【公告放不下的内容】</li>
+                        <li>公告会出现在聊天室置顶位置</li>
+                    </ol>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <img src="https://img.alicdn.com/imgextra/i2/2219106532271/O1CN01BbaRTS1SeAVoCD0B3_!!2219106532271-2-taojianghu_pic_upload.png" alt="公告效果示例1" class="content-image">
+                        <img src="https://img.alicdn.com/imgextra/i2/2219106532271/O1CN017fJKIr1SeAVqXJe3u_!!2219106532271-2-taojianghu_pic_upload.png" alt="公告效果示例2" class="content-image">
+                    </div>
+                </div>
+                
+                <div id="section1-5">
+                    <h3 class="subsection-title">1.5 小窗设置</h3>
+                    <p>小窗功能可以展示重要信息，设置方法：</p>
+                    <ol class="list-decimal list-inside space-y-1 ml-4 my-3">
+                        <li>输入命令：<code class="bg-gray-100 dark:bg-gray-800 px-1 rounded">/window</code> 或</li>
+                        <li>直接点击聊天室右上加号打开小窗</li>
+                        <li>双击开启编辑</li>
+                    </ol>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <img src="https://img.alicdn.com/imgextra/i4/2219106532271/O1CN01S8FTGu1SeAVrIXvUw_!!2219106532271-2-taojianghu_pic_upload.png" alt="小窗功能入口" class="content-image">
+                        <img src="https://img.alicdn.com/imgextra/i2/2219106532271/O1CN01i7JLJq1SeAVrpV2Ih_!!2219106532271-2-taojianghu_pic_upload.png" alt="小窗编辑界面" class="content-image">
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 第二部分：聊天室互动工具 -->
+        <section id="section2" class="mb-12">
+            <div class="card">
+                <h2 class="section-title">二、聊天室互动工具</h2>
+                
+                <div id="section2-1">
+                    <h3 class="subsection-title">2.1 投票工具</h3>
+                    <p>投票是提升聊天室互动性的有效方式，常用于促活和内容制作。</p>
+                    
+                    <div class="tip-box">
+                        <h4 class="font-semibold mb-2">使用方法：</h4>
+                        <ol class="list-decimal list-inside space-y-1 ml-4">
+                            <li>输入格式：<code class="bg-gray-100 dark:bg-gray-800 px-1 rounded">/setpoll 题目，选项1，选项2</code></li>
+                            <li>示例：<code class="bg-gray-100 dark:bg-gray-800 px-1 rounded">/setpoll 如何查看全球股市?，A看好，B看衰</code>
+                                <button class="ml-2 text-primary-500 hover:text-primary-600 transition-colors" onclick="copyToClipboard('/setpoll 如何查看全球股市?，A看好，B看衰')">
+                                    <i class="fas fa-copy"></i>
+                                </button>
+                            </li>
+                            <li>关闭投票：<code class="bg-gray-100 dark:bg-gray-800 px-1 rounded">/poll</code></li>
+                        </ol>
+                    </div>
+                    
+                    <img src="https://img.alicdn.com/imgextra/i3/2219106532271/O1CN01AQ71G31SeAVqWTLdZ_!!2219106532271-2-taojianghu_pic_upload.png" alt="投票工具示例" class="content-image">
+                </div>
+                
+                <div id="section2-2">
+                    <h3 class="subsection-title">2.2 答题工具</h3>
+                    <p>答题活动可以增加聊天室趣味性，是日常活动的好选择。</p>
+                    
+                    <div class="tip-box">
+                        <h4 class="font-semibold mb-2">使用方法：</h4>
+                        <ol class="list-decimal list-inside space-y-1 ml-4">
+                            <li>输入格式：<code class="bg-gray-100 dark:bg-gray-800 px-1 rounded">/setquiz 测试问题{答题秒数}，选项1，选项2*，选项3</code>（带*为正确选项）</li>
+                            <li>示例：<code class="bg-gray-100 dark:bg-gray-800 px-1 rounded">/setquiz 红色加蓝色等于什么颜色{30}，黄色，红色，紫色*</code>
+                                <button class="ml-2 text-primary-500 hover:text-primary-600 transition-colors" onclick="copyToClipboard('/setquiz 红色加蓝色等于什么颜色{30}，黄色，红色，紫色*')">
+                                    <i class="fas fa-copy"></i>
+                                </button>
+                            </li>
+                            <li>关闭答题：<code class="bg-gray-100 dark:bg-gray-800 px-1 rounded">/quiz</code></li>
+                        </ol>
+                    </div>
+                    
+                    <div class="note-box">
+                        <h4 class="font-semibold mb-2">注意事项：</h4>
+                        <ul class="list-disc list-inside space-y-1 ml-4">
+                            <li>符号、格式、秒数要正确</li>
+                            <li>正确答案在题目内标记"*"</li>
+                            <li>答题活动一般准备10道题</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                        <img src="https://img.alicdn.com/imgextra/i3/2219106532271/O1CN012PMjtS1SeAVpkg1ck_!!2219106532271-2-taojianghu_pic_upload.png" alt="答题工具示例1" class="content-image">
+                        <img src="https://img.alicdn.com/imgextra/i1/2219106532271/O1CN01gVYhbh1SeAVqdgmNc_!!2219106532271-2-taojianghu_pic_upload.png" alt="答题工具示例2" class="content-image">
+                    </div>
+                </div>
+                
+                <div id="section2-3">
+                    <h3 class="subsection-title">2.3 押宝答题工具</h3>
+                    <p>押宝答题增加了游戏性，参与者需上交元宝，答对者瓜分奖池。</p>
+                    
+                    <div class="tip-box">
+                        <h4 class="font-semibold mb-2">使用方法：</h4>
+                        <ol class="list-decimal list-inside space-y-1 ml-4">
+                            <li>输入格式：<code class="bg-gray-100 dark:bg-gray-800 px-1 rounded">/setybquiz 测试问题{答题秒数}，选项1，选项2*，选项3</code>（带*为正确选项）</li>
+                            <li>示例：<code class="bg-gray-100 dark:bg-gray-800 px-1 rounded">/setybquiz 红色加蓝色等于什么颜色{30}，黄色，红色，紫色*</code>
+                                <button class="ml-2 text-primary-500 hover:text-primary-600 transition-colors" onclick="copyToClipboard('/setybquiz 红色加蓝色等于什么颜色{30}，黄色，红色，紫色*')">
+                                    <i class="fas fa-copy"></i>
+                                </button>
+                            </li>
+                            <li>关闭押宝答题：<code class="bg-gray-100 dark:bg-gray-800 px-1 rounded">/quiz</code></li>
+                        </ol>
+                    </div>
+                    
+                    <div class="note-box mt-4">
+                        <h4 class="font-semibold mb-2">参与流程：</h4>
+                        <ol class="list-decimal list-inside space-y-1 ml-4">
+                            <li>用户看到题目后自动扣除2元宝</li>
+                            <li>选择答案</li>
+                            <li>答对者瓜分奖池中的元宝</li>
+                        </ol>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                        <img src="https://img.alicdn.com/imgextra/i4/2219106532271/O1CN01Z1XqHL1SeAVrLadwY_!!2219106532271-2-taojianghu_pic_upload.png" alt="押宝答题示例1" class="content-image">
+                        <img src="https://img.alicdn.com/imgextra/i2/2219106532271/O1CN014uISzU1SeAVqdq6jp_!!2219106532271-2-taojianghu_pic_upload.png" alt="押宝答题示例2" class="content-image">
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                        <img src="https://img.alicdn.com/imgextra/i2/2219106532271/O1CN012IQTLD1SeAVrLZN1x_!!2219106532271-2-taojianghu_pic_upload.png" alt="押宝答题示例3" class="content-image">
+                        <img src="https://img.alicdn.com/imgextra/i3/2219106532271/O1CN01TZANZX1SeAVokfQON_!!2219106532271-2-taojianghu_pic_upload.png" alt="押宝答题示例4" class="content-image">
+                    </div>
+                </div>
+                
+                <div id="section2-4">
+                    <h3 class="subsection-title">2.4 幸运儿活动</h3>
+                    <p>随机颜色押注游戏，增加聊天室趣味性。</p>
+                    
+                    <div class="tip-box">
+                        <h4 class="font-semibold mb-2">使用方法：</h4>
+                        <ol class="list-decimal list-inside space-y-1 ml-4">
+                            <li>输入格式：<code class="bg-gray-100 dark:bg-gray-800 px-1 rounded">/whoislucky 30</code>（30代表默认30秒）
+                                <button class="ml-2 text-primary-500 hover:text-primary-600 transition-colors" onclick="copyToClipboard('/whoislucky 30')">
+                                    <i class="fas fa-copy"></i>
+                                </button>
+                            </li>
+                        </ol>
+                    </div>
+                    
+                    <div class="note-box mt-4">
+                        <h4 class="font-semibold mb-2">注意事项：</h4>
+                        <ul class="list-disc list-inside space-y-1 ml-4">
+                            <li>可自行设置时间</li>
+                            <li>不需要填写内容，直接发送自动默认七彩</li>
+                            <li>用答题开关关闭该设置：<code class="bg-gray-100 dark:bg-gray-800 px-1 rounded">/quiz</code></li>
+                        </ul>
+                    </div>
+                    
+                    <img src="https://img.alicdn.com/imgextra/i1/2219106532271/O1CN01LZn3cD1SeAVjs5K27_!!2219106532271-2-taojianghu_pic_upload.png" alt="幸运儿活动示例" class="content-image mt-4">
+                </div>
+            </div>
+        </section>
+
+        <!-- 第三部分：活跃聊天室攻略 -->
+        <section id="section3" class="mb-12">
+            <div class="card">
+                <h2 class="section-title">三、活跃聊天室攻略</h2>
+                
+                <div id="section3-1">
+                    <h3 class="subsection-title">3.1 基础运营策略</h3>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div class="bg-white dark:bg-gray-700 p-4 rounded-lg shadow">
+                            <div class="text-primary-500 text-2xl mb-3">
+                                <i class="fas fa-users"></i>
+                            </div>
+                            <h4 class="font-semibold text-lg mb-2">组建核心用户群</h4>
+                            <ul class="list-disc list-inside space-y-1 text-sm">
+                                <li>新群创立时，拉一些朋友和活跃成员一起闲聊</li>
+                                <li>尽量让群不处于冷场状态</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="bg-white dark:bg-gray-700 p-4 rounded-lg shadow">
+                            <div class="text-primary-500 text-2xl mb-3">
+                                <i class="fas fa-clipboard-list"></i>
+                            </div>
+                            <h4 class="font-semibold text-lg mb-2">制定主题内容</h4>
+                            <ul class="list-disc list-inside space-y-1 text-sm">
+                                <li>根据聊天室主题制定公告内容和固定问答</li>
+                                <li>保持内容更新，增加用户粘性</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="bg-white dark:bg-gray-700 p-4 rounded-lg shadow">
+                            <div class="text-primary-500 text-2xl mb-3">
+                                <i class="fas fa-pen-fancy"></i>
+                            </div>
+                            <h4 class="font-semibold text-lg mb-2">参与创作者计划</h4>
+                            <ul class="list-disc list-inside space-y-1 text-sm">
+                                <li>兴趣类聊天室室长可原创相关内容文章</li>
+                                <li>发布到群里，邀请用户点评互赞</li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+                        <img src="https://img.alicdn.com/imgextra/i1/2219106532271/O1CN01g4lJou1SeAVqj9le7_!!2219106532271-2-taojianghu_pic_upload.png" alt="主题内容示例" class="content-image">
+                        <img src="https://img.alicdn.com/imgextra/i2/2219106532271/O1CN01TYNCn81SeAVpzJUIS_!!2219106532271-2-taojianghu_pic_upload.png" alt="创作内容示例" class="content-image">
+                    </div>
+                </div>
+                
+                <div id="section3-2">
+                    <h3 class="subsection-title">3.2 互动技巧</h3>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="bg-white dark:bg-gray-700 p-4 rounded-lg shadow">
+                            <h4 class="font-semibold text-lg mb-2 text-primary-500">新人互动</h4>
+                            <ul class="list-disc list-inside space-y-1">
+                                <li>有新人进来点击打招呼</li>
+                                <li>如果有人发言要尽快回应</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="bg-white dark:bg-gray-700 p-4 rounded-lg shadow">
+                            <h4 class="font-semibold text-lg mb-2 text-primary-500">提问技巧</h4>
+                            <ul class="list-disc list-inside space-y-1">
+                                <li>用是否问题，而不是开放问题</li>
+                                <li>艾特到具体的人来回应</li>
+                                <li>示例：「你听说过xxx吗？」「你知道这个新闻吗？」</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="bg-white dark:bg-gray-700 p-4 rounded-lg shadow">
+                            <h4 class="font-semibold text-lg mb-2 text-primary-500">接话技巧</h4>
+                            <ul class="list-disc list-inside space-y-1">
+                                <li>顺着看之前的发言有没有能接话的</li>
+                                <li>艾特到具体的人继续讨论</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="bg-white dark:bg-gray-700 p-4 rounded-lg shadow">
+                            <h4 class="font-semibold text-lg mb-2 text-primary-500">鼓励发言</h4>
+                            <ul class="list-disc list-inside space-y-1">
+                                <li>遇到积极发言的，提问的/建议的，及时鼓励和追问</li>
+                                <li>示例：「你说的很好，想问问你为什么这么讲，可以展开说说么？大家应该都很想听」</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="bg-white dark:bg-gray-700 p-4 rounded-lg shadow">
+                            <h4 class="font-semibold text-lg mb-2 text-primary-500">活动组织</h4>
+                            <ul class="list-disc list-inside space-y-1">
+                                <li>发起投票/接龙活动</li>
+                                <li>设计答题、猜词，辩论赛等小游戏</li>
+                                <li>设置元宝和现金奖金提高参与度</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="bg-white dark:bg-gray-700 p-4 rounded-lg shadow">
+                            <h4 class="font-semibold text-lg mb-2 text-primary-500">内容分享</h4>
+                            <ul class="list-disc list-inside space-y-1">
+                                <li>自问自答，分享新闻或观点</li>
+                                <li>找一篇淘江湖或网络的新闻图片，发进去，说一下自己的观点</li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <img src="https://img.alicdn.com/imgextra/i3/2219106532271/O1CN01wBWYzJ1SeAVol33Q6_!!2219106532271-2-taojianghu_pic_upload.png" alt="内容分享示例" class="content-image mt-6">
+                </div>
+            </div>
+        </section>
+
+        <!-- 第四部分：常见问题解答 -->
+        <section id="section4" class="mb-12">
+            <div class="card">
+                <h2 class="section-title">四、常见问题解答(FAQ)</h2>
+                
+                <div class="space-y-6">
+                    <div class="bg-white dark:bg-gray-700 p-5 rounded-lg shadow-sm">
+                        <h3 class="text-lg font-semibold mb-2 text-primary-600 dark:text-primary-400">Q1: 如何快速提高聊天室活跃度？</h3>
+                        <div class="pl-5 border-l-2 border-primary-300">
+                            <p>可以组合使用以下方法：</p>
+                            <ol class="list-decimal list-inside space-y-1 mt-2">
+                                <li>设置有奖互动活动（答题、投票、幸运儿）</li>
+                                <li>邀请活跃用户定时参与讨论</li>
+                                <li>设置热点话题，引导用户讨论</li>
+                                <li>分享有价值的内容，如新闻、观点等</li>
+                            </ol>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white dark:bg-gray-700 p-5 rounded-lg shadow-sm">
+                        <h3 class="text-lg font-semibold mb-2 text-primary-600 dark:text-primary-400">Q2: 公告和小窗应该放什么内容？</h3>
+                        <div class="pl-5 border-l-2 border-primary-300">
+                            <ul class="list-disc list-inside space-y-1 mt-2">
+                                <li><strong>公告适合放置：</strong>聊天室规则、当日活动预告、重要通知等</li>
+                                <li><strong>小窗适合放置：</strong>公告放不下的详细内容、常用链接、奖励规则等</li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white dark:bg-gray-700 p-5 rounded-lg shadow-sm">
+                        <h3 class="text-lg font-semibold mb-2 text-primary-600 dark:text-primary-400">Q3: 如何处理聊天室冷场？</h3>
+                        <div class="pl-5 border-l-2 border-primary-300">
+                            <ol class="list-decimal list-inside space-y-1 mt-2">
+                                <li>准备一些有趣话题，在冷场时抛出</li>
+                                <li>使用投票工具发起简单投票</li>
+                                <li>分享一条热点新闻并发表看法</li>
+                                <li>艾特几位活跃成员参与讨论</li>
+                            </ol>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white dark:bg-gray-700 p-5 rounded-lg shadow-sm">
+                        <h3 class="text-lg font-semibold mb-2 text-primary-600 dark:text-primary-400">Q4: 如何有效管理不良言论？</h3>
+                        <div class="pl-5 border-l-2 border-primary-300">
+                            <ol class="list-decimal list-inside space-y-1 mt-2">
+                                <li>在公告中明确聊天室规则</li>
+                                <li>发现不良言论及时提醒或删除</li>
+                                <li>对屡次违规用户可考虑禁言</li>
+                                <li>引导话题回到正常讨论轨道</li>
+                            </ol>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 总结与建议 -->
+        <section id="summary" class="mb-12">
+            <div class="card">
+                <h2 class="section-title">总结与建议</h2>
+                
+                <div id="core-points">
+                    <h3 class="subsection-title">核心要点</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="bg-primary-50 dark:bg-primary-900/20 p-4 rounded-lg border border-primary-200 dark:border-primary-800">
+                            <div class="text-primary-500 text-xl mb-2">
+                                <i class="fas fa-crown"></i>
+                            </div>
+                            <h4 class="font-semibold mb-1">内容为王</h4>
+                            <p class="text-sm">保持聊天室内容的价值性和趣味性</p>
+                        </div>
+                        
+                        <div class="bg-primary-50 dark:bg-primary-900/20 p-4 rounded-lg border border-primary-200 dark:border-primary-800">
+                            <div class="text-primary-500 text-xl mb-2">
+                                <i class="fas fa-comments"></i>
+                            </div>
+                            <h4 class="font-semibold mb-1">互动至上</h4>
+                            <p class="text-sm">善用各种互动工具提升用户参与感</p>
+                        </div>
+                        
+                        <div class="bg-primary-50 dark:bg-primary-900/20 p-4 rounded-lg border border-primary-200 dark:border-primary-800">
+                            <div class="text-primary-500 text-xl mb-2">
+                                <i class="fas fa-bolt"></i>
+                            </div>
+                            <h4 class="font-semibold mb-1">及时响应</h4>
+                            <p class="text-sm">对用户发言及时回应，不让任何人感到被忽视</p>
+                        </div>
+                        
+                        <div class="bg-primary-50 dark:bg-primary-900/20 p-4 rounded-lg border border-primary-200 dark:border-primary-800">
+                            <div class="text-primary-500 text-xl mb-2">
+                                <i class="fas fa-gift"></i>
+                            </div>
+                            <h4 class="font-semibold mb-1">奖励机制</h4>
+                            <p class="text-sm">适当设置元宝奖励，提高用户参与积极性</p>
+                        </div>
+                        
+                        <div class="bg-primary-50 dark:bg-primary-900/20 p-4 rounded-lg border border-primary-200 dark:border-primary-800">
+                            <div class="text-primary-500 text-xl mb-2">
+                                <i class="fas fa-chart-line"></i>
+                            </div>
+                            <h4 class="font-semibold mb-1">数据分析</h4>
+                            <p class="text-sm">定期查看聊天室数据，调整运营策略</p>
+                        </div>
+
+                        <div class="bg-primary-50 dark:bg-primary-900/20 p-4 rounded-lg border border-primary-200 dark:border-primary-800">
+                            <div class="text-primary-500 text-xl mb-2">
+                                <i class="fas fa-shield-alt"></i>
+                            </div>
+                            <h4 class="font-semibold mb-1">安全管理</h4>
+                            <p class="text-sm">维护聊天室秩序，及时处理不当言论</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="advanced-tips" class="mt-8">
+                    <h3 class="subsection-title">进阶建议</h3>
+                    <div class="bg-gray-50 dark:bg-gray-800 p-5 rounded-lg">
+                        <ol class="list-decimal list-inside space-y-3">
+                            <li class="flex items-start">
+                                <span class="inline-flex items-center justify-center bg-primary-100 dark:bg-primary-900 text-primary-800 dark:text-primary-200 rounded-full h-6 w-6 text-sm mr-3 flex-shrink-0 mt-0.5">1</span>
+                                <span>建立固定活动时间表，如每周一答题、周三辩论等</span>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="inline-flex items-center justify-center bg-primary-100 dark:bg-primary-900 text-primary-800 dark:text-primary-200 rounded-full h-6 w-6 text-sm mr-3 flex-shrink-0 mt-0.5">2</span>
+                                <span>培养核心用户成为聊天室骨干，协助管理和活跃气氛</span>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="inline-flex items-center justify-center bg-primary-100 dark:bg-primary-900 text-primary-800 dark:text-primary-200 rounded-full h-6 w-6 text-sm mr-3 flex-shrink-0 mt-0.5">3</span>
+                                <span>根据聊天室主题，邀请相关领域专业人士进行分享</span>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="inline-flex items-center justify-center bg-primary-100 dark:bg-primary-900 text-primary-800 dark:text-primary-200 rounded-full h-6 w-6 text-sm mr-3 flex-shrink-0 mt-0.5">4</span>
+                                <span>定期更新聊天室公告和小窗内容，保持新鲜感</span>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="inline-flex items-center justify-center bg-primary-100 dark:bg-primary-900 text-primary-800 dark:text-primary-200 rounded-full h-6 w-6 text-sm mr-3 flex-shrink-0 mt-0.5">5</span>
+                                <span>收集用户反馈，不断优化聊天室体验</span>
+                            </li>
+                        </ol>
+                    </div>
+                </div>
+                
+                <div class="text-center mt-8 p-4 bg-primary-50 dark:bg-primary-900/20 rounded-lg">
+                    <p class="text-lg font-semibold text-primary-600 dark:text-primary-400">祝您的聊天室运营取得成功！</p>
+                </div>
+            </div>
+        </section>
+        
+        <!-- 页脚 -->
+        <footer class="text-center text-gray-500 dark:text-gray-400 py-8 border-t border-gray-200 dark:border-gray-700">
+            <p>© 2025 聊天室室长运营攻略 | 版权所有</p>
+            <div class="flex justify-center mt-8 space-x-4">
+                <a href="https://chat.jianghu.taobao.com/chat/20010" target="_blank" rel="noopener noreferrer" class="text-orange-500 font-bold hover:text-orange-600 transition-colors rounded-full px-4 py-1 hover:bg-orange-100 dark:hover:bg-orange-900/20 text-xl">
+                    &nbsp;#&nbsp;
+                </a>
+                <a href="https://jianghu.taobao.com/" target="_blank" rel="noopener noreferrer" class="text-orange-500 font-bold hover:text-orange-600 transition-colors rounded-full px-2 py-1 hover:bg-orange-100 dark:hover:bg-orange-900/20 text-xl">
+                    &nbsp;&nbsp;<img src="https://www.taobao.com/favicon.ico" alt="淘宝" class="w-6 h-6 inline-block">&nbsp;&nbsp;
+                </a>
+            </div>
+        </footer>
+    </main>
+
+    <!-- JavaScript -->
+    <script>
+        // 主题切换
+        const toggleThemeBtn = document.getElementById('toggleTheme');
+        const htmlElement = document.documentElement;
+        
+        // 检查本地存储中的主题偏好
+        if (localStorage.getItem('theme') === 'dark' || 
+            (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            htmlElement.classList.add('dark');
+        } else {
+            htmlElement.classList.remove('dark');
+        }
+        
+        toggleThemeBtn.addEventListener('click', function() {
+            if (htmlElement.classList.contains('dark')) {
+                htmlElement.classList.remove('dark');
+                localStorage.setItem('theme', 'light');
+            } else {
+                htmlElement.classList.add('dark');
+                localStorage.setItem('theme', 'dark');
+            }
+        });
+        
+        // 目录切换
+        const toggleTocBtn = document.getElementById('toggleToc');
+        const tocSidebar = document.getElementById('tocSidebar');
+        
+        // 从localStorage获取侧边栏位置设置,默认为右侧
+        let tocPosition = 'right';
+        
+        // 设置初始样式为右侧
+        tocSidebar.classList.remove('left-0');
+        tocSidebar.classList.add('right-0', 'translate-x-full');
+        tocSidebar.style.transform = '';
+        
+        // 双击侧边栏切换位置
+        tocSidebar.addEventListener('dblclick', function(e) {
+            // 防止触发内部链接
+            if(e.target === tocSidebar || e.target.classList.contains('p-4')) {
+                // 获取当前侧边栏是否展开
+                const isExpanded = !tocSidebar.classList.contains('translate-x-full');
+                
+                // 切换位置
+                if(tocPosition === 'right') {
+                    tocPosition = 'left';
+                    tocSidebar.classList.remove('right-0', 'translate-x-full');
+                    tocSidebar.classList.add('left-0');
+                    // 保持展开状态
+                    tocSidebar.style.transform = isExpanded ? 'translateX(0)' : 'translateX(-100%)';
+                } else {
+                    tocPosition = 'right';
+                    tocSidebar.classList.remove('left-0');
+                    tocSidebar.classList.add('right-0');
+                    // 保持展开状态
+                    if(isExpanded) {
+                        tocSidebar.classList.remove('translate-x-full');
+                    } else {
+                        tocSidebar.classList.add('translate-x-full');
+                    }
+                    tocSidebar.style.transform = '';
+                }
+            }
+        });
+        
+        // 点击按钮切换侧边栏显示/隐藏
+        toggleTocBtn.addEventListener('click', function() {
+            if(tocPosition === 'right') {
+                tocSidebar.classList.toggle('translate-x-full');
+            } else {
+                tocSidebar.style.transform = tocSidebar.style.transform === 'translateX(-100%)' ? 'translateX(0)' : 'translateX(-100%)';
+            }
+        });
+        
+        // 处理侧边栏链接点击事件，实现平滑滚动并考虑导航栏高度
+        document.querySelectorAll('#tocSidebar a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function(e) {
+                e.preventDefault();
+                
+                // 获取目标元素
+                const targetId = this.getAttribute('href');
+                const targetElement = document.querySelector(targetId);
+                
+                if (targetElement) {
+                    // 计算偏移量（导航栏高度 + 额外空间）
+                    const navHeight = document.querySelector('nav').offsetHeight;
+                    const offset = navHeight + 20; // 额外20px的空间
+                    
+                    // 获取目标元素的位置
+                    const targetPosition = targetElement.getBoundingClientRect().top + window.pageYOffset - offset;
+                    
+                    // 平滑滚动到目标位置
+                    window.scrollTo({
+                        top: targetPosition,
+                        behavior: 'smooth'
+                    });
+                }
+            });
+        });
+        
+        // 图片查看器功能
+        const images = document.querySelectorAll('.content-image');
+        const imageModal = document.getElementById('imageModal');
+        const modalImage = document.getElementById('modalImage');
+        const closeModal = document.getElementById('closeModal');
+        const prevImage = document.getElementById('prevImage');
+        const nextImage = document.getElementById('nextImage');
+        
+        let currentImageIndex = 0;
+        
+        // 打开图片模态框
+        images.forEach((image, index) => {
+            image.addEventListener('click', () => {
+                imageModal.classList.remove('hidden');
+                modalImage.src = image.src;
+                currentImageIndex = index;
+            });
+        });
+        
+        // 关闭图片模态框
+        closeModal.addEventListener('click', () => {
+            imageModal.classList.add('hidden');
+        });
+        
+        // 按ESC键关闭模态框
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                imageModal.classList.add('hidden');
+            }
+        });
+        
+        // 上一张图片
+        prevImage.addEventListener('click', () => {
+            currentImageIndex = (currentImageIndex - 1 + images.length) % images.length;
+            modalImage.src = images[currentImageIndex].src;
+        });
+        
+        // 下一张图片
+        nextImage.addEventListener('click', () => {
+            currentImageIndex = (currentImageIndex + 1) % images.length;
+            modalImage.src = images[currentImageIndex].src;
+        });
+        
+        // 复制命令到剪贴板功能
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                // 创建一个临时提示元素
+                const toast = document.createElement('div');
+                toast.textContent = '已复制到剪贴板！';
+                toast.style.cssText = `
+                    position: fixed;
+                    bottom: 20px;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    background-color: rgba(0, 0, 0, 0.8);
+                    color: white;
+                    padding: 10px 20px;
+                    border-radius: 4px;
+                    z-index: 9999;
+                `;
+                
+                // 添加到页面
+                document.body.appendChild(toast);
+                
+                // 2秒后自动移除
+                setTimeout(() => {
+                    toast.style.opacity = '0';
+                    toast.style.transition = 'opacity 0.5s ease';
+                    setTimeout(() => document.body.removeChild(toast), 500);
+                }, 2000);
+            }).catch(err => {
+                console.error('复制失败:', err);
+            });
+        }
+    </script>
+</body>
+</html>
