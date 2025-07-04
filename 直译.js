@@ -14,7 +14,6 @@ function createUltimateUserSimulator() {
         left: 50%;
         transform: translateX(-50%);
         width: min(480px, 90vw);
-        height: min(75vh, 750px);
         background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
         border: none;
         border-radius: 16px;
@@ -410,6 +409,7 @@ function createUltimateUserSimulator() {
             
             /* 内容编辑器样式 - 精致版 */
             #ultimate-user-simulator .ultimate-content-editor {
+                padding: inherit;
                 max-height: 300px;
                 overflow-y: auto;
                 border: 1px solid #f1f5f9;
@@ -1175,7 +1175,7 @@ function createUltimateUserSimulator() {
                         <span class="ultimate-btn-icon">🗑️</span>
                         清空粘贴区
                     </button>
-                    <button onclick="performUltimateParse()" class="ultimate-btn-tool ultimate-btn紫">
+                    <button onclick="performUltimateParse()" class="ultimate-btn-tool ultimate-btn-purple">
                         <span class="ultimate-btn-icon">🧠</span>
                         智能解析
                     </button>
@@ -1271,7 +1271,7 @@ function createUltimateUserSimulator() {
                                 <span class="ultimate-btn-icon">🖼️</span>
                                 添加图片
                             </button>
-                            <button onclick="performSmartArrange()" class="ultimate-btn-tool ultimate-btn紫">
+                            <button onclick="performSmartArrange()" class="ultimate-btn-tool ultimate-btn-purple">
                                 <span class="ultimate-btn-icon">✨</span>
                                 智能排版
                             </button>
@@ -1529,6 +1529,13 @@ window.ultimateSimulatorVisible = true;
 
 // 设置事件监听器 - 精致版
 function setupUltimateEventListeners() {
+    // 粘贴事件监听，支持图片和富文本
+    setTimeout(() => {
+        const pasteArea = document.getElementById('ultimate-paste-area');
+        if (pasteArea) {
+            pasteArea.addEventListener('paste', handleUltimatePaste);
+        }
+    }, 200);
     // 页签切换
     document.querySelectorAll('.ultimate-tab-button').forEach(button => {
         button.addEventListener('click', () => {
@@ -1552,6 +1559,51 @@ function setupUltimateEventListeners() {
             });
         }
     }, 100);
+}
+
+// 粘贴处理函数，支持图片和富文本
+async function handleUltimatePaste(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    const clipboardData = event.clipboardData || window.clipboardData;
+    const pasteArea = document.getElementById('ultimate-paste-area');
+    if (!pasteArea) return;
+
+    let handled = false;
+    // 处理图片
+    if (clipboardData && clipboardData.items) {
+        for (let i = 0; i < clipboardData.items.length; i++) {
+            const item = clipboardData.items[i];
+            if (item.type.indexOf('image') !== -1) {
+                const file = item.getAsFile();
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const img = document.createElement('img');
+                    img.src = e.target.result;
+                    img.style.maxWidth = '100%';
+                    img.style.display = 'block';
+                    pasteArea.appendChild(img);
+                };
+                reader.readAsDataURL(file);
+                handled = true;
+            }
+        }
+    }
+    // 处理富文本/HTML
+    if (!handled && clipboardData && clipboardData.getData) {
+        const html = clipboardData.getData('text/html');
+        if (html) {
+            pasteArea.insertAdjacentHTML('beforeend', html);
+            handled = true;
+        }
+    }
+    // 处理纯文本
+    if (!handled && clipboardData && clipboardData.getData) {
+        const text = clipboardData.getData('text/plain');
+        if (text) {
+            pasteArea.insertAdjacentText('beforeend', text);
+        }
+    }
 }
 
 // 页签切换函数 - 精致版
@@ -1609,7 +1661,8 @@ async function performUltimateParse() {
     const pasteArea = document.getElementById('ultimate-paste-area');
     if (!pasteArea) return;
     
-    const children = Array.from(pasteArea.children);
+    // 关键修复：用childNodes保证图片和文本都能被遍历
+    const children = Array.from(pasteArea.childNodes);
     if (children.length === 0) {
         showUltimateToast('⚠️ 粘贴区域为空，请先粘贴内容', 'warning');
         return;
@@ -1624,39 +1677,36 @@ async function performUltimateParse() {
     let contentSequence = [];
     
     try {
-        // 同步解析，确保顺序正确
-        for (let i = 0; i < children.length; i++) {
-            const element = children[i];
-            await new Promise(resolve => setTimeout(resolve, 50)); // 小延迟确保同步
-            
-            if (element.tagName === 'IMG') {
-                // 处理图片
-                const imgSrc = element.src;
-                if (imgSrc && imgSrc.startsWith('data:')) {
-                    contentSequence.push({
-                        type: 'image',
-                        content: imgSrc,
-                        id: generateUniqueId()
-                    });
+        // 参考图文助手.JS的分割方式，先顺序收集所有节点，图片和文本混排时也能保留顺序
+        // 递归遍历所有节点，保证图片和文本都能被识别
+        function collectNodes(nodeList, arr) {
+            nodeList.forEach(node => {
+                if (node.nodeType === 1 && node.tagName === 'IMG') {
+                    arr.push({ type: 'image', content: node.src, id: generateUniqueId() });
+                } else if (node.nodeType === 3) {
+                    if (node.textContent && node.textContent.trim()) {
+                        arr.push({ type: 'text', content: node.textContent.trim() });
+                    }
+                } else if (node.nodeType === 1) {
+                    // 递归处理所有子节点
+                    collectNodes(Array.from(node.childNodes), arr);
                 }
-            } else if (element.tagName === 'P' || element.tagName === 'DIV' || element.textContent.trim()) {
-                // 处理文本
-                let textContent = element.textContent.trim();
-                
-                if (textContent) {
-                    // 根据分段模式处理文本
-                    const textSegments = segmentText(textContent, segmentMode, customLength);
-                    
-                    textSegments.forEach(segment => {
-                        if (segment.trim()) {
-                            contentSequence.push({
-                                type: 'text',
-                                content: segment.trim(),
-                                id: generateUniqueId()
-                            });
-                        }
-                    });
-                }
+            });
+        }
+        let tempSequence = [];
+        collectNodes(children, tempSequence);
+
+        // 再分段文本，图片保持原顺序
+        for (let item of tempSequence) {
+            if (item.type === 'image') {
+                contentSequence.push(item);
+            } else if (item.type === 'text') {
+                const textSegments = segmentText(item.content, segmentMode, customLength);
+                textSegments.forEach(seg => {
+                    if (seg.trim()) {
+                        contentSequence.push({ type: 'text', content: seg.trim(), id: generateUniqueId() });
+                    }
+                });
             }
         }
         
@@ -1698,42 +1748,129 @@ async function performUltimateParse() {
     }
 }
 
-// 文本分段函数 - 精致版
-function segmentText(text, mode, customLength) {
+
+// 分段文本 - 修复版本
+function segmentText(text, mode) {
+    // 预处理：对于答题模式保留斜杠，其他模式去掉开头的斜杠
+    const cleanText = mode === 'quiz' ? text.trim() : text.replace(/^\/+/, '').trim();
+    if (!cleanText) return [];
+    
     switch (mode) {
         case 'paragraph':
-            return text.split(/\n\s*\n/).filter(p => p.trim());
-            
-        case 'sentence':
-            return text.split(/[。！？.!?]/).filter(s => s.trim()).map(s => s + '。');
-            
+            // 按段落分割（双换行或单换行）
+            const paragraphs = cleanText.split(/\n\s*\n|\n/).filter(s => s.trim());
+            console.log(`📝 按段落分割：${paragraphs.length} 段`);
+            return paragraphs.length > 0 ? paragraphs : [cleanText];
+        
         case 'quiz':
-            // 检测答题格式（数字、字母或汉字序号）
-            const quizPattern = /(?:^|\n)(?:\d+[.\、]|[A-Za-z][.\、]|[一二三四五六七八九十][.\、])/;
-            if (quizPattern.test(text)) {
-                return text.split(/(?=(?:\d+[.\、]|[A-Za-z][.\、]|[一二三四五六七八九十][.\、]))/);
+            // 按答题分割：专门处理/setquiz格式的题目
+            const quizPattern = /\/setquiz\s+[^\/]+/gi;
+            let quizMatches = cleanText.match(quizPattern);
+            
+            if (quizMatches && quizMatches.length > 0) {
+                // 找到答题格式，直接使用匹配的结果
+                console.log(`🧮 按答题分割：${quizMatches.length} 道题`);
+                return quizMatches.map(quiz => quiz.trim());
+            } else {
+                // 如果没有找到/setquiz格式，按行分割并添加/setquiz前缀
+                const lines = cleanText.split(/\n/).filter(line => line.trim());
+                const quizLines = lines.map(line => {
+                    const trimmedLine = line.trim();
+                    // 如果行不是以/setquiz开头，添加前缀
+                    if (!trimmedLine.toLowerCase().startsWith('/setquiz')) {
+                        return `/setquiz ${trimmedLine}`;
+                    }
+                    return trimmedLine;
+                });
+                console.log(`🧮 按答题分割（添加前缀）：${quizLines.length} 道题`);
+                return quizLines;
             }
-            return [text];
+    
+        case 'sentence':
+            // 按句子分割（中英文句号、感叹号、问号）
+            const sentencePattern = /[。！？.!?]+\s*/;
+            let sentences = cleanText.split(sentencePattern).filter(s => s.trim());
+            
+            // 重新添加标点符号
+            sentences = sentences.map((sentence, index, arr) => {
+                const trimmed = sentence.trim();
+                if (trimmed && index < arr.length - 1) {
+                    // 如果句子不以标点结尾，添加句号
+                    if (!/[。！？.!?]$/.test(trimmed)) {
+                        return trimmed + '。';
+                    }
+                }
+                return trimmed;
+            }).filter(s => s);
+            
+            console.log(`📖 按句子分割：${sentences.length} 句`);
+            return sentences.length > 0 ? sentences : [cleanText];
             
         case 'auto':
-            // 智能分割：优先按段落，然后按句子，最后按长度
-            if (text.includes('\n\n')) {
-                return segmentText(text, 'paragraph', customLength);
-            } else if (text.length > 300) {
-                return segmentText(text, 'sentence', customLength);
-            }
-            return [text];
+            // 智能分割：首先按段落，然后检查长度
+            const autoParagraphs = cleanText.split(/\n\s*\n|\n/).filter(s => s.trim());
+            const result = [];
+            
+            autoParagraphs.forEach(para => {
+                const trimmed = para.trim();
+                if (trimmed.length > 200) {
+                    // 长段落按句子分割
+                    const sentences = trimmed.split(/[。！？.!?]+\s*/).filter(s => s.trim());
+                    sentences.forEach((s, i) => {
+                        const sentence = s.trim();
+                        if (sentence && i < sentences.length - 1) {
+                            if (!/[。！？.!?]$/.test(sentence)) {
+                                result.push(sentence + '。');
+                            } else {
+                                result.push(sentence);
+                            }
+                        } else if (sentence) {
+                            result.push(sentence);
+                        }
+                    });
+                } else {
+                    result.push(trimmed);
+                }
+            });
+            
+            console.log(`🎯 智能分割：${result.length} 段`);
+            return result.length > 0 ? result : [cleanText];
             
         case 'custom':
-            const segments = [];
-            for (let i = 0; i < text.length; i += customLength) {
-                segments.push(text.slice(i, i + customLength));
-            }
-            return segments;
+            // 自定义长度分割
+            const customLength = parseInt(document.getElementById('custom-segment-length').value) || 200;
+            const customResult = [];
+            let currentPos = 0;
             
-        case 'none':
+            while (currentPos < cleanText.length) {
+                let endPos = currentPos + customLength;
+                
+                // 如果没有到结尾，尝试在句号处截断
+                if (endPos < cleanText.length) {
+                    const nextPeriodPos = cleanText.indexOf('。', currentPos);
+                    const nextQuestionPos = cleanText.indexOf('？', currentPos);
+                    const nextExclamationPos = cleanText.indexOf('！', currentPos);
+                    
+                    const periods = [nextPeriodPos, nextQuestionPos, nextExclamationPos]
+                        .filter(pos => pos > currentPos && pos <= endPos);
+                    
+                    if (periods.length > 0) {
+                        endPos = Math.max(...periods) + 1;
+                    }
+                }
+                
+                const segment = cleanText.substring(currentPos, endPos).trim();
+                if (segment) {
+                    customResult.push(segment);
+                }
+                currentPos = endPos;
+            }
+            
+            console.log(`🔧 自定义分割（${customLength}字符）：${customResult.length} 段`);
+            return customResult.length > 0 ? customResult : [cleanText];
+            
         default:
-            return [text];
+            return [cleanText];
     }
 }
 
@@ -2216,67 +2353,89 @@ async function startUltimateSequence() {
             throw new Error('未找到聊天输入框');
         }
         
-        // 新增代码开始 - 从指定索引开始循环
-        for (let i = startIndex; i < window.ultimateContentSequence.length; i++) {
-        // 新增代码结束
+        // 完全参照图文助手.JS的分组发送逻辑
+        let i = startIndex;
+        while (i < window.ultimateContentSequence.length) {
             if (window.sendingAborted) {
                 showUltimateToast('⏹️ 发送已停止', 'warning');
-                break;
+                return;
             }
-            
-            // 检查暂停状态
-            while (window.isPaused) {
-                await new Promise(resolve => setTimeout(resolve, 500));
-                if (window.sendingAborted) break;
+            window.currentSendingIndex = i;
+            // 更新继续发送选择器的当前值
+            const continueSelect = document.getElementById('continue-from-select');
+            if (continueSelect) {
+                continueSelect.value = i.toString();
+                if (typeof updateContinueFromSelect === 'function') updateContinueFromSelect();
             }
-            
-            if (window.sendingAborted) break;
-            
-            const item = window.ultimateContentSequence[i];
-            
-            // 新增代码开始 - 同时发送组处理
-            const sendGroup = [item];
-            let j = i + 1;
-            
-            // 收集需要同时发送的项目
-            while (j <= window.ultimateContentSequence.length && 
-                   window.ultimateContentSequence[i + sendGroup.length - 1]?.sendWithNext) {
-                if (window.ultimateContentSequence[j]) {
-                    sendGroup.push(window.ultimateContentSequence[j]);
-                }
+            // 等待暂停状态恢复
+            while (window.isPaused && !window.sendingAborted) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            if (window.sendingAborted) return;
+            // 收集需要同时发送的项目组
+            const sendGroup = [window.ultimateContentSequence[i]];
+            let j = i;
+            while (j < window.ultimateContentSequence.length - 1 && window.ultimateContentSequence[j].sendWithNext) {
                 j++;
+                sendGroup.push(window.ultimateContentSequence[j]);
             }
-            
-            // 发送整个组
-            for (const groupItem of sendGroup) {
-                if (groupItem.type === 'text') {
-                    await typeTextWithSpeed(chatbox, groupItem.content, typingSpeed);
-                } else if (groupItem.type === 'image') {
-                    await pasteImageToChat(chatbox, groupItem.content);
-                }
-                
-                // 检查是否需要暂停或停止
-                if (window.sendingAborted) break;
-                while (window.isPaused) {
-                    await new Promise(resolve => setTimeout(resolve, 500));
-                    if (window.sendingAborted) break;
-                }
+            // 显示发送信息
+            if (sendGroup.length === 1) {
+                showUltimateToast(`📤 正在发送第 ${i + 1}/${window.ultimateContentSequence.length} 项`, 'info');
+            } else {
+                showUltimateToast(`📤 正在同时发送第 ${i + 1}-${j + 1} 项（共${sendGroup.length}项）`, 'info');
             }
-            
-            // 发送消息（整个组一起发送）
-            if (!window.sendingAborted) {
-                await sendMessage(chatbox);
-                
-                // 跳过组中的其他项目
-                i = j - 1;
-                
-                // 等待发送间隔（除非是最后一项）
-                if (i < window.ultimateContentSequence.length - 1) {
-                    await new Promise(resolve => setTimeout(resolve, sendInterval));
+            // 串行发送组内所有项目（确保文本完全输入后再一起发送）
+            await sendGroupSequentially_ultimate(sendGroup, typingSpeed, chatbox);
+            // 更新索引到组的最后一项
+            i = j + 1;
+            // 等待发送间隔（除了最后一项或最后一组）
+            if (i < window.ultimateContentSequence.length) {
+                for (let k = 0; k < sendInterval; k += 100) {
+                    if (window.sendingAborted) return;
+                    while (window.isPaused && !window.sendingAborted) {
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                    }
+                    if (window.sendingAborted) return;
+                    await new Promise(resolve => setTimeout(resolve, Math.min(100, sendInterval - k)));
                 }
             }
-            // 新增代码结束
         }
+// 完全参照图文助手.JS的分组串行发送
+async function sendGroupSequentially_ultimate(sendGroup, typingSpeed, chatInput) {
+    if (sendGroup.length === 1) {
+        const item = sendGroup[0];
+        if (item.type === 'text') {
+            await typeTextWithSpeed(chatInput, item.content, typingSpeed);
+            await triggerSendAction_ultimate(chatInput);
+        } else if (item.type === 'image') {
+            await pasteImageToChat(chatInput, item.content);
+            await triggerSendAction_ultimate(chatInput);
+        }
+        return;
+    }
+    // 多项内容串行发送：先处理所有文本，然后一起发送所有内容
+    let allText = '';
+    const imageItems = [];
+    for (const item of sendGroup) {
+        if (item.type === 'text') {
+            if (allText) allText += '\n';
+            allText += item.content;
+        } else if (item.type === 'image') {
+            imageItems.push(item);
+        }
+    }
+    // 先输入所有文本
+    if (allText) {
+        await typeTextWithSpeed(chatInput, allText, typingSpeed);
+    }
+    // 再上传所有图片
+    for (const imageItem of imageItems) {
+        await pasteImageToChat(chatInput, imageItem.content);
+    }
+    // 最后统一发送
+    await triggerSendAction_ultimate(chatInput);
+}
         
         showUltimateToast('✅ 序列发送完成！', 'success');
         
@@ -2469,6 +2628,16 @@ function importUltimateHistory() {
                 }
                 window.ultimateContentSequence = data.contentSequence;
                 updateContentEditor();
+                // 启用发送按钮
+                const sendBtn = document.getElementById('ultimate-start-sequence');
+                if (sendBtn) {
+                    sendBtn.disabled = false;
+                    sendBtn.style.opacity = '1';
+                }
+                // 更新从指定序号继续的选项
+                if (typeof updateContinueFromOptions === 'function') updateContinueFromOptions();
+                const continueControls = document.getElementById('continue-from-controls');
+                if (continueControls) continueControls.style.display = 'flex';
                 // 恢复发送设置
                 if (data.typingSpeed) {
                     document.getElementById('ultimate-typing-speed').value = data.typingSpeed;
@@ -3262,6 +3431,12 @@ function previewSequence() {
 // 寻找聊天输入框 - 通用版本
 function findChatInputBox() {
     // 常见的聊天输入框选择器
+    // 参考图文助手.JS，优先用 #chat-input
+    const chatInput = document.getElementById('chat-input');
+    if (chatInput && chatInput.offsetParent !== null) {
+        return chatInput;
+    }
+    // 兼容常见输入框
     const selectors = [
         'textarea[placeholder*="输入"]',
         'div[contenteditable="true"]',
@@ -3271,15 +3446,13 @@ function findChatInputBox() {
         '.chat-input',
         '[data-testid="textbox"]'
     ];
-    
     for (let selector of selectors) {
         const element = document.querySelector(selector);
         if (element && element.offsetParent !== null) {
             return element;
         }
     }
-    
-    console.warn('未找到聊天输入框');
+    showUltimateToast('❌ 未找到聊天输入框，请先点击聊天输入框或检查页面结构', 'error');
     return null;
 }
 
@@ -3299,9 +3472,7 @@ async function typeTextWithSpeed(element, text, speed) {
     // 逐字输入
     for (let i = 0; i < text.length; i++) {
         if (window.sendingAborted) break;
-        
         const char = text[i];
-        
         if (element.tagName === 'TEXTAREA' || element.tagName === 'INPUT') {
             element.value += char;
             element.dispatchEvent(new Event('input', { bubbles: true }));
@@ -3309,37 +3480,37 @@ async function typeTextWithSpeed(element, text, speed) {
             element.textContent += char;
             element.dispatchEvent(new Event('input', { bubbles: true }));
         }
-        
-        // 滚动到底部
         element.scrollTop = element.scrollHeight;
-        
-        // 等待指定的打字间隔
         await new Promise(resolve => setTimeout(resolve, speed));
     }
+    // 不自动发送，主循环统一调用 sendMessage
 }
 
 // 粘贴图片到聊天框
 async function pasteImageToChat(element, imageDataUrl) {
-    if (!element || !imageDataUrl) return;
-    
+    // 完全参照图文助手.JS，上传后自动触发回车/发送
+    if (!imageDataUrl) return;
     try {
-        // 将base64转换为blob
         const response = await fetch(imageDataUrl);
         const blob = await response.blob();
-        
-        // 创建剪贴板项
-        const clipboardItem = new ClipboardItem({ [blob.type]: blob });
-        await navigator.clipboard.write([clipboardItem]);
-        
-        // 聚焦输入框并触发粘贴
-        element.focus();
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
-        // 模拟粘贴操作
-        element.dispatchEvent(new Event('paste', { bubbles: true }));
-        
-        await new Promise(resolve => setTimeout(resolve, 200));
-        
+        let ext = 'png';
+        if (blob.type === 'image/jpeg') ext = 'jpg';
+        else if (blob.type === 'image/gif') ext = 'gif';
+        else if (blob.type === 'image/webp') ext = 'webp';
+        const file = new File([blob], `image.${ext}`, { type: blob.type });
+        const fileInput = document.querySelector('input[type="file"]');
+        if (fileInput) {
+            const dataTransfer = new DataTransfer();
+            dataTransfer.items.add(file);
+            fileInput.files = dataTransfer.files;
+            fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+            // 图片上传完成后稍等片刻再自动发送
+            setTimeout(() => {
+                triggerSendAction_ultimate(element);
+            }, 1000);
+        } else {
+            showUltimateToast('⚠️ 未找到文件上传输入框，图片无法自动上传', 'warning');
+        }
     } catch (error) {
         console.error('图片粘贴失败:', error);
         showUltimateToast('⚠️ 图片粘贴可能失败，请手动处理', 'warning');
@@ -3347,41 +3518,34 @@ async function pasteImageToChat(element, imageDataUrl) {
 }
 
 // 发送消息
-async function sendMessage(element) {
-    if (!element) return;
-    
-    // 查找发送按钮
-    const sendSelectors = [
-        'button[type="submit"]',
-        'button:contains("发送")',
-        'button:contains("Send")',
-        '[data-testid="send-button"]',
-        '.send-button',
-        'button[title*="发送"]'
-    ];
-    
-    let sendButton = null;
-    for (let selector of sendSelectors) {
-        sendButton = document.querySelector(selector);
-        if (sendButton && sendButton.offsetParent !== null) break;
-    }
-    
-    if (sendButton) {
-        sendButton.click();
-    } else {
-        // 尝试键盘发送
-        element.focus();
-        element.dispatchEvent(new KeyboardEvent('keydown', {
-            key: 'Enter',
-            code: 'Enter',
-            keyCode: 13,
-            which: 13,
-            bubbles: true
-        }));
-    }
-    
-    await new Promise(resolve => setTimeout(resolve, 300));
+// 完全参照图文助手.JS的触发发送实现
+function triggerSendAction_ultimate(chatInput) {
+    return new Promise((resolve) => {
+        if (window.sendingAborted) {
+            resolve();
+            return;
+        }
+        setTimeout(() => {
+            if (!window.sendingAborted) {
+                const sendButton = document.querySelector('#btn_send, .send-button, [data-testid="send-button"]');
+                if (sendButton) {
+                    sendButton.click();
+                } else if (chatInput) {
+                    const enterEvent = new KeyboardEvent('keydown', {
+                        key: 'Enter',
+                        keyCode: 13,
+                        which: 13,
+                        bubbles: true,
+                        cancelable: true
+                    });
+                    chatInput.dispatchEvent(enterEvent);
+                }
+            }
+            resolve();
+        }, 300);
+    });
 }
+
 
 // 显示通知消息 - 精致版
 function showUltimateToast(message, type = 'info') {
